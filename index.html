@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Who Drew It Right</title>
+<meta name="description" content="A game about deterministic finite automata: two near-identical DFAs for one regular expression, only one is correct.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="chalk" filterUnits="userSpaceOnUse" x="0" y="0" width="560" height="384">
+      <feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="4" result="wob"></feTurbulence>
+      <feDisplacementMap in="SourceGraphic" in2="wob" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="rough"></feDisplacementMap>
+      <feTurbulence type="fractalNoise" baseFrequency="1.15" numOctaves="1" seed="9" result="grain"></feTurbulence>
+      <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -2.6 2.35" result="mask"></feColorMatrix>
+      <feComposite in="rough" in2="mask" operator="in"></feComposite>
+    </filter>
+  </defs>
+</svg>
+
+<!-- ============ MENU ============ -->
+<main id="screen-menu" class="screen">
+  <div class="menu-copy">
+    <h1 class="title">Who drew it <em>right?</em></h1>
+    <p class="lede">One regular expression, two computer scientists, two DFAs that look almost identical. Only one accepts the right language. Your job is to point at it.</p>
+    <div class="setup">
+      <div class="field">
+        <span class="lab" id="lab-states-m">States per machine</span>
+        <div class="stepper" role="group" aria-labelledby="lab-states-m">
+          <button type="button" id="m-states-dec" data-step="states" data-d="-1" aria-label="Fewer states">−</button>
+          <output id="m-states-out" data-out="states">4</output>
+          <button type="button" id="m-states-inc" data-step="states" data-d="1" aria-label="More states">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <span class="lab" id="lab-mode-m">Mode</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-mode-m">
+          <label><input type="radio" name="m-mode" id="m-mode-rounds" data-set="mode" data-type="str" value="rounds"><span>Rounds</span></label>
+          <label><input type="radio" name="m-mode" id="m-mode-endless" data-set="mode" data-type="str" value="endless"><span>Endless</span></label>
+        </div>
+        <p class="hint" data-mode-hint style="min-height:1.4em"></p>
+      </div>
+      <div class="field">
+        <span class="lab" id="lab-level-m">Trap level</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-level-m">
+          <label><input type="radio" name="m-level" id="m-level-1" data-set="level" data-type="int" value="1"><span>Obvious</span></label>
+          <label><input type="radio" name="m-level" id="m-level-2" data-set="level" data-type="int" value="2"><span>Subtle</span></label>
+          <label><input type="radio" name="m-level" id="m-level-3" data-set="level" data-type="int" value="3"><span>Shuffled</span></label>
+        </div>
+        <p class="hint" data-level-hint></p>
+      </div>
+    </div>
+    <div class="menu-actions">
+      <button type="button" class="btn btn-primary btn-big" id="btn-start">Start</button>
+      <button type="button" class="btn" data-open="dlg-settings">Settings</button>
+      <button type="button" class="btn" data-open="dlg-help">How to play</button>
+      <button type="button" class="btn" data-music aria-pressed="true">Music: on</button>
+    </div>
+    <p class="record" id="record"></p>
+  </div>
+  <div class="board" id="demo-board" aria-label="Example: a DFA for a*bc reading a word">
+    <p class="demo-caption">Example: <b>L = a*bc</b></p>
+    <div data-svg></div>
+    <p class="board-status" data-status>&nbsp;</p>
+  </div>
+</main>
+
+<!-- ============ GAME ============ -->
+<main id="screen-game" class="screen" hidden>
+  <header class="topbar">
+    <span class="wordmark">Who drew it right?</span>
+    <div class="hud">
+      <div><span class="k" id="hud-round">Round 1/5</span><span class="pips" id="pips"></span></div>
+      <div><span class="k">Score</span><span class="v" id="hud-score">0</span></div>
+      <div><span class="k">Streak</span><span class="v" id="hud-streak">0</span></div>
+      <div><span class="k" id="hud-best-k">Best</span><span class="v" id="hud-best">0</span></div>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="btn btn-small" data-music aria-pressed="true">Music: on</button>
+      <button type="button" class="btn btn-small" data-open="dlg-help">How to play</button>
+      <button type="button" class="btn btn-small" data-open="dlg-settings">Settings</button>
+      <button type="button" class="btn btn-small" id="btn-restart">Restart</button>
+      <button type="button" class="btn btn-small" id="btn-menu">Menu</button>
+    </div>
+  </header>
+
+  <section class="problem" aria-label="Problem">
+    <div>
+      <p class="ask">Problem: draw a DFA that accepts exactly the language</p>
+      <p class="regex" id="regex"></p>
+    </div>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <section class="boards">
+    <div class="side">
+      <article class="board" id="board-0">
+        <div class="board-head"><span data-avatar></span><div><div class="who" data-who></div><div class="quip" data-quip></div></div></div>
+        <span class="stamp" data-stamp hidden></span>
+        <div data-svg></div>
+        <p class="board-status" data-status aria-live="polite">&nbsp;</p>
+      </article>
+      <button type="button" class="btn btn-primary" id="pick-0">An is right</button>
+    </div>
+    <div class="side">
+      <article class="board" id="board-1">
+        <div class="board-head"><span data-avatar></span><div><div class="who" data-who></div><div class="quip" data-quip></div></div></div>
+        <span class="stamp" data-stamp hidden></span>
+        <div data-svg></div>
+        <p class="board-status" data-status aria-live="polite">&nbsp;</p>
+      </article>
+      <button type="button" class="btn btn-primary" id="pick-1">Bình is right</button>
+    </div>
+  </section>
+
+  <div class="bench">
+    <section class="card verdict" id="verdict" hidden aria-live="polite"></section>
+    <section class="card tester" id="tester">
+      <label class="lab" for="word"><b>Run a word on both machines</b></label>
+      <div class="tester-row">
+        <input type="text" id="word" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="24" placeholder="e.g. aabc">
+        <span class="keys" id="keys"></span>
+        <button type="button" class="btn" id="btn-clear">Clear</button>
+        <button type="button" class="btn btn-primary" id="btn-run">Run</button>
+      </div>
+      <p class="tape" id="tape" aria-hidden="true"></p>
+      <p class="small" id="tester-note"></p>
+    </section>
+  </div>
+</main>
+
+<!-- ============ END ============ -->
+<main id="screen-end" class="screen" hidden>
+  <h1 class="title" style="font-size:clamp(2.4rem,6vw,4rem)" id="end-title">Game over</h1>
+  <div>
+    <div class="end-score" id="end-score">0</div>
+    <div class="end-stats" id="end-stats"></div>
+  </div>
+  <ul class="recap" id="recap"></ul>
+  <div class="menu-actions">
+    <button type="button" class="btn btn-primary btn-big" id="btn-again">Play again</button>
+    <button type="button" class="btn" id="btn-end-menu">Back to menu</button>
+    <button type="button" class="btn" data-open="dlg-settings">Settings</button>
+  </div>
+</main>
+
+<!-- ============ DIALOGS ============ -->
+<dialog id="dlg-settings" aria-labelledby="set-title">
+  <div class="dlg">
+    <h2 id="set-title">Settings</h2>
+    <div class="rows">
+      <div class="sect">Problem</div>
+      <div class="row">
+        <span class="lab" id="lab-states-s">States per machine</span>
+        <div class="stepper" role="group" aria-labelledby="lab-states-s">
+          <button type="button" id="s-states-dec" data-step="states" data-d="-1" aria-label="Fewer states">−</button>
+          <output id="s-states-out" data-out="states">4</output>
+          <button type="button" id="s-states-inc" data-step="states" data-d="1" aria-label="More states">+</button>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lab" id="lab-alpha">Alphabet</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-alpha">
+          <label><input type="radio" name="s-alpha" id="s-alpha-2" data-set="alpha" data-type="int" value="2"><span>{a, b}</span></label>
+          <label><input type="radio" name="s-alpha" id="s-alpha-3" data-set="alpha" data-type="int" value="3"><span>{a, b, c}</span></label>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lab" id="lab-level-s">Trap level</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-level-s">
+          <label><input type="radio" name="s-level" id="s-level-1" data-set="level" data-type="int" value="1"><span>Obvious</span></label>
+          <label><input type="radio" name="s-level" id="s-level-2" data-set="level" data-type="int" value="2"><span>Subtle</span></label>
+          <label><input type="radio" name="s-level" id="s-level-3" data-set="level" data-type="int" value="3"><span>Shuffled</span></label>
+        </div>
+      </div>
+      <p class="small" data-level-hint></p>
+      <div class="row">
+        <span class="lab">Draw the dead state<span class="sub">Off: a missing edge means the machine rejects.</span></span>
+        <label class="switch"><input type="checkbox" id="s-sink" data-set="showSink" data-type="bool"><span>Complete DFA</span></label>
+      </div>
+      <div class="row">
+        <span class="lab" id="lab-union">Union symbol</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-union">
+          <label><input type="radio" name="s-union" id="s-union-bar" data-set="union" data-type="str" value="|"><span>a|b</span></label>
+          <label><input type="radio" name="s-union" id="s-union-plus" data-set="union" data-type="str" value="+"><span>a + b</span></label>
+        </div>
+      </div>
+      <div class="sect">Game</div>
+      <div class="row">
+        <span class="lab" id="lab-mode-s">Mode<span class="sub">Endless: one wrong pick ends the game.</span></span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-mode-s">
+          <label><input type="radio" name="s-mode" id="s-mode-rounds" data-set="mode" data-type="str" value="rounds"><span>Rounds</span></label>
+          <label><input type="radio" name="s-mode" id="s-mode-endless" data-set="mode" data-type="str" value="endless"><span>Endless</span></label>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lab" id="lab-rounds">Rounds per game<span class="sub">Only used in Rounds mode.</span></span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-rounds">
+          <label><input type="radio" name="s-rounds" id="s-rounds-5" data-set="rounds" data-type="int" value="5"><span>5</span></label>
+          <label><input type="radio" name="s-rounds" id="s-rounds-10" data-set="rounds" data-type="int" value="10"><span>10</span></label>
+          <label><input type="radio" name="s-rounds" id="s-rounds-15" data-set="rounds" data-type="int" value="15"><span>15</span></label>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lab">Allow test runs<span class="sub">Watch both machines read a word you type.</span></span>
+        <label class="switch"><input type="checkbox" id="s-tester" data-set="tester" data-type="bool"><span>On</span></label>
+      </div>
+      <div class="sect">Sound</div>
+      <div class="row">
+        <span class="lab">Background music</span>
+        <label class="switch"><input type="checkbox" id="s-music" data-set="music" data-type="bool"><span>On</span></label>
+      </div>
+      <div class="row">
+        <label class="lab" for="s-volume">Music volume</label>
+        <input type="range" id="s-volume" min="0" max="100" step="5" data-set="volume" data-type="pct">
+      </div>
+      <div class="row">
+        <span class="lab">Right / wrong chimes</span>
+        <label class="switch"><input type="checkbox" id="s-sfx" data-set="sfx" data-type="bool"><span>On</span></label>
+      </div>
+    </div>
+    <p class="small" id="set-note">Problem settings apply from the next round. Mode and round count apply from the next game.</p>
+    <div class="dlg-foot">
+      <button type="button" class="btn" id="btn-defaults">Reset to defaults</button>
+      <button type="button" class="btn btn-primary" data-close>Done</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-help" aria-labelledby="help-title">
+  <div class="dlg help">
+    <h2 id="help-title">How to play</h2>
+    <ul>
+      <li>Each round shows a regular expression. Two scientists each draw a DFA for it. One machine is correct. The other is wrong in exactly one place.</li>
+      <li>The arrow with no source points at the start state. A double circle marks an accepting state.</li>
+      <li>When the dead state is not drawn: if the current state has no edge for the symbol being read, the machine rejects.</li>
+      <li>Trap types: an edge to the wrong state, a missing edge, an extra edge, two swapped labels, a wrong label, a misplaced double circle.</li>
+      <li>On <b>Shuffled</b>, each scientist names and arranges the states their own way. Two different pictures can still be the same language.</li>
+      <li>You can type a word and watch both machines run. A machine only tells you whether it accepts or rejects. Whether the word belongs to the language is for you to work out from the expression.</li>
+      <li>Score: 100, 150 or 200 depending on trap level. Each consecutive correct pick adds 25 (up to 100). A round with no test run adds 50.</li>
+      <li><b>Endless</b> mode has no round limit. One wrong pick ends the game. Your best score and rounds survived are saved as a separate record.</li>
+      <li>Shortcuts: <code>1</code> picks the left board, <code>2</code> the right board, <code>Enter</code> goes to the next round.</li>
+    </ul>
+    <div class="dlg-foot"><button type="button" class="btn btn-primary" data-close>Got it</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlg-confirm" aria-labelledby="confirm-title">
+  <div class="dlg">
+    <h2 id="confirm-title">Abandon this game?</h2>
+    <p id="confirm-text">This game’s score will not count.</p>
+    <div class="dlg-foot">
+      <button type="button" class="btn" data-close>Keep playing</button>
+      <button type="button" class="btn btn-primary" id="confirm-yes">Yes</button>
+    </div>
+  </div>
+</dialog>
+
+<script src="js/core.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

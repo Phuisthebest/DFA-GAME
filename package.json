@@ -1,0 +1,10 @@
+{
+  "name": "who-drew-it-right",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A browser game about spotting the one correct DFA among two near-identical ones.",
+  "scripts": {
+    "start": "npx serve .",
+    "test": "node test/core.test.js"
+  }
+}
