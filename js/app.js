@@ -20,7 +20,7 @@ function loadStore() {
 }
 function saveStore() { try { localStorage.setItem(STORE, JSON.stringify({ settings: S.settings, best: S.best, bestEndless: S.bestEndless, bestEndlessRounds: S.bestEndlessRounds })); } catch (e) {} }
 
-var WHO = ['An', 'Bình'];
+var WHO = ['Turing', 'Giesl'];
 var QUIPS = ['Took me two minutes.', 'I tested five words. All fine.', 'This one is already minimal.', 'You can tell at a glance.', 'I checked it by hand, twice.', 'The other board has a wrong edge.', 'Trust me.', 'Count the states again.', 'I am sure about this one.', 'This is the clean way to draw it.'];
 var LEVELS = {
   1: { name: 'Obvious', base: 100, hint: 'Both boards use the same layout. The mistake shows up on very short words.' },
